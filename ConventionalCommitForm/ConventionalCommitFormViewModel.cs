@@ -30,7 +30,7 @@ namespace ConventionalCommitForm
             Scopes = new ObservableCollection<string>();
             Footers = new ObservableCollection<string>();
 
-            _types = new[] {"fix", "feat​", "docs​", "refactor​", "test", "chore​", "build​", "ci​", "style", "perf​"};
+            _types = new[] { "fix", "feat​", "docs​", "refactor​", "test", "chore​", "build​", "ci​", "style", "perf​", "cleanup" };
             SelectedType = _types.First();
 
             WindowLoadedCommand = new DelegateCommand(OnWindowLoaded);
