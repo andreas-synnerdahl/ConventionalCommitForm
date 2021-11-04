@@ -52,19 +52,22 @@
                   ItemsSource="{Binding Footers}"
                   Text="{Binding Footer, UpdateSourceTrigger=PropertyChanged}" />
         <DockPanel Grid.Row="3">
-            <TextBlock x:Name="HeaderWidthTextBlock"
-                       Margin="10"
-                       Text="{Binding HeaderWidth, ValidatesOnDataErrors=True}" />
             <Button Content="&lt;"
                     Padding="10"
                     Command="{Binding SetPreviousCommitMessageCommend}" />
             <Button Content="&gt;"
                     Padding="10"
                     Command="{Binding SetNextCommitMessageCommand}" />
+            
             <Button Content="Copy"
                     Padding="10"
-                    HorizontalAlignment="Right"
+                    DockPanel.Dock="Right"
                     Command="{Binding CopyToClipboardCommand}" />
+
+            <TextBlock x:Name="HeaderWidthTextBlock"
+                       Margin="10"
+                       TextAlignment="Right"
+                       Text="{Binding HeaderWidth,Mode=OneWay,ValidatesOnDataErrors=True,StringFormat=Width: {0}}" />
         </DockPanel>
     </Grid>
 </Window>
