@@ -24,7 +24,7 @@ namespace ConventionalCommitForm
         private string _selectedType;
 
         private IEnumerable<string> _types;
-
+         
         public ConventionalCommitFormViewModel()
         {
             Scopes = new ObservableCollection<string>();
