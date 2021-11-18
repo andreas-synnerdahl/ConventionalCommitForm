@@ -24,7 +24,7 @@ namespace ConventionalCommitForm
         private string _selectedType;
 
         private IEnumerable<string> _types;
-
+         
         public ConventionalCommitFormViewModel()
         {
             Scopes = new ObservableCollection<string>();
@@ -152,14 +152,18 @@ namespace ConventionalCommitForm
 
         private void UpdateScopes()
         {
+            var oldValue = Scope;
             Scopes.Clear();
             Scopes.AddRange(_commitHistory.Select(cm => cm.Scope).Distinct());
+            Scope = oldValue;
         }
 
         private void UpdateFooters()
         {
+            var oldValue = Footer;
             Footers.Clear();
             Footers.AddRange(_commitHistory.Select(cm => cm.Footer).Distinct());
+            Footer = oldValue;
         }
 
         private void InitUiFromCommitMessage(ConventionalCommitDto commitMessage)

@@ -9,6 +9,8 @@
         Title="ConventionalCommitFormView"
         Width="1000"
         Height="450"
+        MinWidth="1000"
+        MinHeight="450"
         prism:ViewModelLocator.AutoWireViewModel="True"
         d:DataContext="{d:DesignInstance conventionalCommitForm:ConventionalCommitFormViewModel}"
         FontSize="16"
@@ -52,15 +54,17 @@
                   ItemsSource="{Binding Footers}"
                   Text="{Binding Footer, UpdateSourceTrigger=PropertyChanged}" />
         <DockPanel Grid.Row="3">
-            <TextBlock x:Name="HeaderWidthTextBlock"
-                       Margin="10"
-                       Text="{Binding HeaderWidth, ValidatesOnDataErrors=True}" />
             <Button Content="&lt;"
                     Padding="10"
                     Command="{Binding SetPreviousCommitMessageCommend}" />
             <Button Content="&gt;"
                     Padding="10"
                     Command="{Binding SetNextCommitMessageCommand}" />
+            <TextBlock Margin="10"
+                       Text="Message Width:" />
+            <TextBlock x:Name="HeaderWidthTextBlock"
+                       Margin="10"
+                       Text="{Binding HeaderWidth, ValidatesOnDataErrors=True}" />
             <Button Content="Copy"
                     Padding="10"
                     HorizontalAlignment="Right"
