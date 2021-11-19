@@ -2,319 +2,151 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.IO;
 using System.Linq;
-using System.Text;
 using System.Windows;
 using System.Windows.Input;
-using System.Xml.Serialization;
 using Prism.Commands;
 using Prism.Mvvm;
 
 namespace ConventionalCommitForm
 {
-    public class ConventionalCommitFormViewModel : BindableBase, IDataErrorInfo
+    public class ConventionalCommitFormViewModel
+        : BindableBase
+        , IDataErrorInfo
     {
-        private string _body;
-        private List<ConventionalCommitDto> _commitHistory = new List<ConventionalCommitDto>();
-        private readonly string _commitHistoryFilename = "CommitHistory.xml";
-        private string _description;
-        private string _footer;
-        private string _scope;
-        private string _selectedType;
+        private const string _commitHistoryFilename = "CommitHistory.xml";
 
-        private IEnumerable<string> _types;
-         
+        public static int MaxWidth => 72;
+
+        private int _headerWidth;
+        private string fullMessage;
+
+        private CommitMessage message;
+
         public ConventionalCommitFormViewModel()
         {
-            Scopes = new ObservableCollection<string>();
-            Footers = new ObservableCollection<string>();
+            Types = new Types();
+            Scopes = new SortedSet<string>(StringComparer.CurrentCultureIgnoreCase);
+            Footers = new SortedSet<string>(StringComparer.CurrentCultureIgnoreCase);
+            Messages = new ObservableCollection<CommitMessage>() ;
 
-            _types = new[] { "fix", "feat​", "docs​", "refactor​", "test", "chore​", "build​", "ci​", "style", "perf​", "cleanup" };
-            SelectedType = _types.First();
-
-            WindowLoadedCommand = new DelegateCommand(OnWindowLoaded);
-            WindowClosingCommand = new DelegateCommand(OnWindowClosing);
+            WindowLoadedCommand = new DelegateCommand(Window_OnLoaded);
+            WindowClosingCommand = new DelegateCommand(Window_OnClosing);
             CopyToClipboardCommand = new DelegateCommand(CopyToClipboard);
-            SetPreviousCommitMessageCommend =
-                new DelegateCommand(SetPreviousCommitMessage, CanSetPreviousCommitMessage);
-            SetNextCommitMessageCommand = new DelegateCommand(SetNextCommitMessage, CanSetNextCommitMessage);
-        }
 
-        public ObservableCollection<string> Scopes { get; set; }
-        public ObservableCollection<string> Footers { get; set; }
+            var message = new CommitMessage();
 
-        public string Scope
-        {
-            get => _scope;
-            set => SetProperty(ref _scope, value);
+            Messages.Add(message);
+
+            Message = message;
         }
 
         public ICommand WindowClosingCommand { get; }
         public ICommand WindowLoadedCommand { get; }
         public ICommand CopyToClipboardCommand { get; }
-        public DelegateCommand SetPreviousCommitMessageCommend { get; }
-        public DelegateCommand SetNextCommitMessageCommand { get; }
 
-        public IEnumerable<string> Types
+        public ICollection<string> Types { get; }
+        public ICollection<string> Scopes { get; }
+        public ICollection<string> Footers { get; }
+        public ICollection<CommitMessage> Messages { get; }
+
+        public string Error => string.Empty;
+
+        public int HeaderWidth
         {
-            get => _types;
-            set => SetProperty(ref _types, value);
+            get => _headerWidth;
+            private set => SetProperty(ref _headerWidth, value);
         }
 
-        public string SelectedType
+        public string FullMessage
         {
-            get => _selectedType;
+            get => fullMessage;
+            private set => SetProperty(ref fullMessage, value, OnFullMessageChanged);
+        }
+
+        public CommitMessage Message
+        {
+            get => message;
             set
             {
-                SetProperty(ref _selectedType, value);
-                RaisePropertyChanged(nameof(HeaderWidth));
+                if (message != null)
+                {
+                    message.PropertyChanged -= Message_PropertyChanged;
+                }
+
+                SetProperty(ref message, value);
+
+                if (message != null)
+                {
+                    message.PropertyChanged += Message_PropertyChanged;
+                }
             }
         }
 
-        public string Body
-        {
-            get => _body;
-            set
-            {
-                SetProperty(ref _body, value);
-                RaisePropertyChanged(nameof(HeaderWidth));
-            }
-        }
-
-        public string Footer
-        {
-            get => _footer;
-            set
-            {
-                SetProperty(ref _footer, value);
-                RaisePropertyChanged(nameof(HeaderWidth));
-            }
-        }
-
-        public string Description
-        {
-            get => _description;
-            set
-            {
-                SetProperty(ref _description, value);
-                RaisePropertyChanged(nameof(HeaderWidth));
-            }
-        }
-
-        public int HeaderWidth => FormatCommitMessage().Split("\n").Select(line => line.Length).Max();
-
-        public string Error => "....";
-
-        public string this[string columnName]
+        public string this[string name]
         {
             get
             {
-                var errorMessage = string.Empty;
-
-                if (columnName == nameof(HeaderWidth))
-                    if (HeaderWidth > 72)
-                        errorMessage = "Width > 72";
-
-                return errorMessage;
-            }
-        }
-
-        private void OnWindowLoaded()
-        {
-            var serializer = new XmlSerializer(typeof(List<ConventionalCommitDto>));
-
-            if (File.Exists(_commitHistoryFilename) == false)
-                return;
-
-            using Stream reader = new FileStream(_commitHistoryFilename, FileMode.Open);
-
-            try
-            {
-                _commitHistory = (List<ConventionalCommitDto>) serializer.Deserialize(reader);
-                if (_commitHistory.Any())
+                if (name == nameof(HeaderWidth) &&
+                    HeaderWidth > MaxWidth)
                 {
-                    var lastCommit = _commitHistory.First();
-                    InitUiFromCommitMessage(lastCommit);
+                    return $"Width > {MaxWidth}";
                 }
+
+                return string.Empty;
             }
-            catch
-            {
-                _commitHistory = new List<ConventionalCommitDto>();
-            }
-
-            SetNextCommitMessageCommand.RaiseCanExecuteChanged();
-            SetPreviousCommitMessageCommend.RaiseCanExecuteChanged();
-
-            UpdateScopes();
-            UpdateFooters();
-        }
-
-        private void UpdateScopes()
-        {
-            var oldValue = Scope;
-            Scopes.Clear();
-            Scopes.AddRange(_commitHistory.Select(cm => cm.Scope).Distinct());
-            Scope = oldValue;
-        }
-
-        private void UpdateFooters()
-        {
-            var oldValue = Footer;
-            Footers.Clear();
-            Footers.AddRange(_commitHistory.Select(cm => cm.Footer).Distinct());
-            Footer = oldValue;
-        }
-
-        private void InitUiFromCommitMessage(ConventionalCommitDto commitMessage)
-        {
-            SelectedType = commitMessage.Type;
-            Scope = commitMessage.Scope;
-            Description = commitMessage.Description;
-            Body = commitMessage.Body;
-            Footer = commitMessage.Footer;
         }
 
         public void CopyToClipboard()
         {
-            var commitMessage = FormatCommitMessage();
-            Clipboard.SetText(commitMessage);
-
-            var currentCommitMessage = CreateConventionalCommitDtoFromUi();
-
-            AddCommitMessageToHistoryAtBeginning(currentCommitMessage);
-
-            UpdateScopes();
-            UpdateFooters();
+            Clipboard.SetText(FullMessage);
         }
 
-        private void AddCommitMessageToHistoryAtBeginning(ConventionalCommitDto newCommitMessage)
+        private void Window_OnLoaded()
         {
-            SetNextCommitMessageCommand.RaiseCanExecuteChanged();
-            SetPreviousCommitMessageCommend.RaiseCanExecuteChanged();
-
-            var newCommitHistory = new List<ConventionalCommitDto>();
-            newCommitHistory.Add(newCommitMessage);
-            newCommitHistory.AddRange(_commitHistory);
-            _commitHistory = newCommitHistory.Distinct().ToList();
-        }
-
-        private void AddCommitMessageToHistoryUnique(ConventionalCommitDto newCommitMessage)
-        {
-            if (_commitHistory.Contains(newCommitMessage))
-                return;
-
-            SetNextCommitMessageCommand.RaiseCanExecuteChanged();
-            SetPreviousCommitMessageCommend.RaiseCanExecuteChanged();
-
-            AddCommitMessageToHistoryAtBeginning(newCommitMessage);
-        }
-
-        private string FormatCommitMessage()
-        {
-            var commitMessage = new StringBuilder();
-
-            commitMessage.Append(SelectedType);
-            commitMessage.Append(FormatOptionalParameter("(", Scope, ")"));
-            commitMessage.Append(": " + Description);
-            commitMessage.Append(FormatOptionalParameter("\n\n", Body, string.Empty));
-            commitMessage.Append(FormatOptionalParameter("\n\n", Footer, string.Empty));
-            return commitMessage.ToString();
-        }
-
-        private string FormatOptionalParameter(string prefix, string content, string suffix)
-        {
-            if (string.IsNullOrEmpty(content))
-                return string.Empty;
-
-            return $"{prefix}{content}{suffix}";
-        }
-
-        private bool CanSetNextCommitMessage()
-        {
-            return _commitHistory.IndexOf(CreateConventionalCommitDtoFromUi()) > 0;
-        }
-
-        private bool CanSetPreviousCommitMessage()
-        {
-            return _commitHistory.IndexOf(CreateConventionalCommitDtoFromUi()) < _commitHistory.Count - 1;
-        }
-
-        private void SetNextCommitMessage()
-        {
-            var currentCommitMessage = CreateConventionalCommitDtoFromUi();
-            AddCommitMessageToHistoryUnique(currentCommitMessage);
-            var currentIndex = _commitHistory.IndexOf(currentCommitMessage);
-            var previousCommitMessage = _commitHistory[currentIndex - 1];
-            InitUiFromCommitMessage(previousCommitMessage);
-
-            SetNextCommitMessageCommand.RaiseCanExecuteChanged();
-            SetPreviousCommitMessageCommend.RaiseCanExecuteChanged();
-        }
-
-        private void SetPreviousCommitMessage()
-        {
-            var currentCommitMessage = CreateConventionalCommitDtoFromUi();
-            AddCommitMessageToHistoryUnique(currentCommitMessage);
-            var currentIndex = _commitHistory.IndexOf(currentCommitMessage);
-            var previousCommitMessage = _commitHistory[currentIndex + 1];
-            InitUiFromCommitMessage(previousCommitMessage);
-
-            SetNextCommitMessageCommand.RaiseCanExecuteChanged();
-            SetPreviousCommitMessageCommend.RaiseCanExecuteChanged();
-        }
-
-        private void OnWindowClosing()
-        {
-            AddCommitMessageToHistoryAtBeginning(CreateConventionalCommitDtoFromUi());
-            var limitedHistory = _commitHistory.Take(100).ToList();
-
-            using TextWriter writer = new StreamWriter(_commitHistoryFilename);
-            var serializer = new XmlSerializer(typeof(List<ConventionalCommitDto>));
-            serializer.Serialize(writer, limitedHistory);
-            writer.Close();
-        }
-
-        private ConventionalCommitDto CreateConventionalCommitDtoFromUi()
-        {
-            return new ConventionalCommitDto
+            try
             {
-                Type = SelectedType,
-                Scope = Scope,
-                Body = Body,
-                Description = Description,
-                Footer = Footer
-            };
-        }
+                var previousHistory = Serializer.Load(_commitHistoryFilename);
 
-        public class ConventionalCommitDto : IEquatable<ConventionalCommitDto>
-        {
-            public string Type { get; set; }
-            public string Scope { get; set; }
-            public string Description { get; set; }
-            public string Body { get; set; }
-            public string Footer { get; set; }
+                Update(previousHistory);
 
-            public bool Equals(ConventionalCommitDto other)
-            {
-                if (ReferenceEquals(null, other)) return false;
-                if (ReferenceEquals(this, other)) return true;
-                return Type == other.Type && Scope == other.Scope && Description == other.Description &&
-                       Body == other.Body && Footer == other.Footer;
+                Messages.AddRange(previousHistory);
             }
-
-            public override bool Equals(object obj)
+            catch (Exception ex)
             {
-                if (ReferenceEquals(null, obj)) return false;
-                if (ReferenceEquals(this, obj)) return true;
-                if (obj.GetType() != GetType()) return false;
-                return Equals((ConventionalCommitDto) obj);
+                MessageBox.Show(ex.Message, $"Load: {_commitHistoryFilename}");
             }
+        }
 
-            public override int GetHashCode()
-            {
-                return HashCode.Combine(Type, Scope, Description, Body, Footer);
-            }
+        private void Window_OnClosing()
+        {
+            var limitedHistory = Messages
+                .Take(100)
+                .ToList();
+
+            Serializer.Save(_commitHistoryFilename, limitedHistory);
+        }
+
+        private void Message_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            FullMessage = message.ToString();
+        }
+
+        private void OnFullMessageChanged()
+        {
+            HeaderWidth = FullMessage.CountWidth();
+        }
+
+        private void Update(IEnumerable<ICommitMessage> messages)
+        {
+            foreach (var message in messages)
+                Update(message);
+        }
+
+        private void Update(ICommitMessage message)
+        {
+            Scopes.Add(message.Scope);
+            Footers.Add(message.Footer);
         }
     }
 }
